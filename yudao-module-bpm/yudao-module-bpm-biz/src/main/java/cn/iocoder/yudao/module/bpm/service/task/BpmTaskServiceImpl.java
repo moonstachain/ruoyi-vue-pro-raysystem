@@ -294,10 +294,14 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     @Override
     public Task validateTask(Long userId, String taskId) {
         Task task = validateTaskExist(taskId);
-        // 为什么判断 assignee 非空的情况下？
-        // 例如说：在审批人为空时，我们会有“自动审批通过”的策略，此时 userId 为 null，允许通过
-        if (StrUtil.isNotBlank(task.getAssignee())
-                && ObjectUtil.notEqual(userId, NumberUtils.parseLong(task.getAssignee()))) {
+        // 系统自动审批：userId 为 null 时允许（例如审批人为空时的自动通过策略）
+        if (userId == null) {
+            return task;
+        }
+        // 必须是当前 assignee。向前加签会暂时清空 assignee（改记 owner），此时禁止任意登录用户冒充审批；
+        // 向后加签子任务会先 resolve 再设回 assignee，仍走此校验。
+        if (StrUtil.isBlank(task.getAssignee())
+                || ObjectUtil.notEqual(userId, NumberUtils.parseLong(task.getAssignee()))) {
             throw exception(TASK_OPERATE_FAIL_ASSIGN_NOT_SELF);
         }
         return task;
