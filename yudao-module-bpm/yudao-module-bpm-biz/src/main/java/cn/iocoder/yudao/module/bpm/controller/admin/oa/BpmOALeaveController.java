@@ -17,9 +17,12 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.validation.Valid;
+import java.util.Objects;
 
+import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
 import static cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUtils.getLoginUserId;
+import static cn.iocoder.yudao.module.bpm.enums.ErrorCodeConstants.OA_LEAVE_NOT_EXISTS;
 
 /**
  * OA 请假申请 Controller，用于演示自己存储数据，接入工作流的例子
@@ -49,6 +52,10 @@ public class BpmOALeaveController {
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
     public CommonResult<BpmOALeaveRespVO> getLeave(@RequestParam("id") Long id) {
         BpmOALeaveDO leave = leaveService.getLeave(id);
+        // 与 page 一致：仅本人可按 id 读取，避免 bpm:oa-leave:query 用户枚举他人请假原因
+        if (leave == null || !Objects.equals(leave.getUserId(), getLoginUserId())) {
+            throw exception(OA_LEAVE_NOT_EXISTS);
+        }
         return success(BeanUtils.toBean(leave, BpmOALeaveRespVO.class));
     }
 

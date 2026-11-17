@@ -1112,7 +1112,16 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     public void deleteSignTask(Long userId, BpmTaskSignDeleteReqVO reqVO) {
         // 1.1 校验 task 可以被减签
         Task task = validateTaskCanSignDelete(reqVO.getId());
-        // 1.2 校验取消人存在
+        // 1.2 必须是父任务的审批人/拥有人才能减签，避免任意 bpm:task:update 用户删除他人加签子任务并触发 AFTER 加签父任务自动 complete
+        Task parentTask = validateTaskExist(task.getParentTaskId());
+        boolean isParentAssignee = StrUtil.isNotBlank(parentTask.getAssignee())
+                && ObjectUtil.equal(userId, NumberUtils.parseLong(parentTask.getAssignee()));
+        boolean isParentOwner = StrUtil.isNotBlank(parentTask.getOwner())
+                && ObjectUtil.equal(userId, NumberUtils.parseLong(parentTask.getOwner()));
+        if (!isParentAssignee && !isParentOwner) {
+            throw exception(TASK_OPERATE_FAIL_ASSIGN_NOT_SELF);
+        }
+        // 1.3 校验取消人存在
         AdminUserRespDTO cancelUser = null;
         if (StrUtil.isNotBlank(task.getAssignee())) {
             cancelUser = adminUserApi.getUser(NumberUtils.parseLong(task.getAssignee()));
@@ -1142,6 +1151,8 @@ public class BpmTaskServiceImpl implements BpmTaskService {
 
     @Override
     public void copyTask(Long userId, BpmTaskCopyReqVO reqVO) {
+        // 必须是当前任务审批人，避免任意 bpm:task:update 用户对任意流程发起抄送
+        validateTask(userId, reqVO.getId());
         processInstanceCopyService.createProcessInstanceCopy(reqVO.getCopyUserIds(), reqVO.getReason(), reqVO.getId());
     }
 
